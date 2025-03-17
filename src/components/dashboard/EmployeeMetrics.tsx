@@ -102,27 +102,14 @@ const EmployeeMetrics = ({ companyId }: EmployeeMetricsProps) => {
   };
   
   const fetchEmployees = async (companyId: string) => {
-    const [registeredResponse, employeesResponse] = await Promise.all([
-      supabase
-        .from('registered_employees')
-        .select('id, name, email')
-        .eq('company_id', companyId),
-        
-      supabase
-        .from('employees')
-        .select('id, name, email')
-        .eq('company_id', companyId)
-    ]);
+    const { data: registeredEmployees, error } = await supabase
+      .from('registered_employees')
+      .select('id, name, email')
+      .eq('company_id', companyId);
     
-    if (registeredResponse.error) throw registeredResponse.error;
-    if (employeesResponse.error) throw employeesResponse.error;
+    if (error) throw error;
     
-    const allEmployees = [...(registeredResponse.data || []), ...(employeesResponse.data || [])];
-    const uniqueEmployees = Array.from(
-      new Map(allEmployees.map(emp => [emp.email, emp])).values()
-    );
-    
-    return uniqueEmployees;
+    return registeredEmployees || [];
   };
   
   const calculateEmployeeMetrics = (timeTrackingData: TimeTrackingEntry[], employees: any[]): EmployeeWorkHours[] => {
@@ -135,7 +122,7 @@ const EmployeeMetrics = ({ companyId }: EmployeeMetricsProps) => {
         totalHours: 0,
         daysWorked: 0,
         averageHoursPerDay: 0,
-        entries: [] as { date: string, action: TimeTrackingAction, timestamp: string }[]
+        entries: [] as { date: string, action: TimeTrackingAction, timestamp: string }[] 
       });
     });
     

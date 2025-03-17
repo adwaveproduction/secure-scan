@@ -11,22 +11,19 @@ export type Database = {
     Tables: {
       app_passwords: {
         Row: {
-          id: string
+          id: number
           password_type: string
           password_value: string
-          updated_at: string | null
         }
         Insert: {
-          id?: string
+          id?: number
           password_type: string
           password_value: string
-          updated_at?: string | null
         }
         Update: {
-          id?: string
+          id?: number
           password_type?: string
           password_value?: string
-          updated_at?: string | null
         }
         Relationships: []
       }
@@ -51,24 +48,24 @@ export type Database = {
         }
         Relationships: []
       }
-      employees: {
+      employee: {
         Row: {
           company_id: string
-          created_at: string
+          created_at: string | null
           email: string
           id: string
           name: string
         }
         Insert: {
           company_id: string
-          created_at?: string
+          created_at?: string | null
           email: string
-          id: string
+          id?: string
           name: string
         }
         Update: {
           company_id?: string
-          created_at?: string
+          created_at?: string | null
           email?: string
           id?: string
           name?: string
@@ -204,6 +201,27 @@ export type Database = {
           employee_id?: string
           id?: string
           timestamp?: string
+        }
+        Relationships: []
+      }
+      users: {
+        Row: {
+          email: string
+          id: string
+          password: string | null
+          role: string | null
+        }
+        Insert: {
+          email: string
+          id?: string
+          password?: string | null
+          role?: string | null
+        }
+        Update: {
+          email?: string
+          id?: string
+          password?: string | null
+          role?: string | null
         }
         Relationships: []
       }

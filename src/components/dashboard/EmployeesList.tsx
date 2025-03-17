@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase, isUsingMockClient } from '@/utils/supabase-client';
@@ -19,57 +18,29 @@ const EmployeesList = ({ companyId }: EmployeesListProps) => {
   const fetchEmployees = async () => {
     try {
       setLoading(true);
-      
+
       // If using mock client, use mock data
       if (isUsingMockClient) {
         console.log('Using mock employee data');
         setEmployees([
-          {
-            id: 'mock-id-1',
-            name: 'Jean Dupont',
-            email: 'jean.dupont@example.com'
-          },
-          {
-            id: 'mock-id-2',
-            name: 'Marie Martin',
-            email: 'marie.martin@example.com'
-          }
+          { id: 'mock-id-1', name: 'Jean Dupont', email: 'jean.dupont@example.com' },
+          { id: 'mock-id-2', name: 'Marie Martin', email: 'marie.martin@example.com' }
         ]);
         setLoading(false);
         return;
       }
-      
-      // Fetch employees from both tables and combine the results
-      const [registeredResponse, employeesResponse] = await Promise.all([
-        // First query the registered_employees table
-        supabase
-          .from('registered_employees')
-          .select('id, name, email')
-          .eq('company_id', companyId),
-          
-        // Then query the employees table
-        supabase
-          .from('employees')
-          .select('id, name, email')
-          .eq('company_id', companyId)
-      ]);
-      
-      if (registeredResponse.error) {
-        throw registeredResponse.error;
+
+      // Fetch employees only from 'registered_employees' table
+      const { data, error } = await supabase
+        .from('registered_employees')
+        .select('id, name, email')
+        .eq('company_id', companyId);
+
+      if (error) {
+        throw error;
       }
-      
-      if (employeesResponse.error) {
-        throw employeesResponse.error;
-      }
-      
-      // Combine and deduplicate employees by email
-      const allEmployees = [...(registeredResponse.data || []), ...(employeesResponse.data || [])];
-      const uniqueEmployees = Array.from(
-        new Map(allEmployees.map(emp => [emp.email, emp])).values()
-      );
-      
-      console.log('Combined employee data:', uniqueEmployees);
-      setEmployees(uniqueEmployees);
+
+      setEmployees(data || []); // Ensure employees list is never undefined
     } catch (error) {
       console.error('Error fetching employees:', error);
       toast.error("Erreur lors du chargement des employés");
@@ -85,17 +56,14 @@ const EmployeesList = ({ companyId }: EmployeesListProps) => {
   const handleExportExcel = () => {
     try {
       const formattedData = formatEmployeeListData(employees);
-      exportToExcel(
-        formattedData, 
-        `liste-employes-${new Date().toISOString().split('T')[0]}`
-      );
+      exportToExcel(formattedData, `liste-employes-${new Date().toISOString().split('T')[0]}`);
       toast.success("Export Excel réussi");
     } catch (error) {
       console.error("Erreur lors de l'export:", error);
       toast.error("Erreur lors de l'export Excel");
     }
   };
-  
+
   return (
     <Card>
       <EmployeesListHeader 
@@ -113,9 +81,7 @@ const EmployeesList = ({ companyId }: EmployeesListProps) => {
             Aucun employé enregistré.
           </div>
         ) : (
-          <EmployeesTable 
-            employees={employees}
-          />
+          <EmployeesTable employees={employees} />
         )}
       </CardContent>
     </Card>

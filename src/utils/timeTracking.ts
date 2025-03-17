@@ -2,13 +2,17 @@
 /**
  * Utility pour gérer le pointage des employés
  */
-import { supabase, isUsingMockClient } from './supabase-client';
+import { supabase } from './supabase-client';
+import { isUsingMockClient } from './supabase-client';
 
 // Types d'actions de pointage
 export enum TimeTrackingAction {
   ENTRY = 'entry',
   EXIT = 'exit'
 }
+
+// Clé pour stocker le dernier pointage dans localStorage (pour le mode démo)
+const getLastActionKey = (employeeId: string) => `last_action_${employeeId}`;
 
 // Enregistrer un nouveau pointage (entrée ou sortie)
 export const recordTimeTracking = async (
@@ -17,9 +21,9 @@ export const recordTimeTracking = async (
   action: TimeTrackingAction
 ): Promise<boolean> => {
   try {
-    console.log('Recording time tracking with employee ID:', employeeId);
+    console.log(`Recording time tracking: Employee ${employeeId}, Action: ${action}`);
     
-    // Si nous utilisons le client mock, juste logger
+    // Si nous utilisons le client mock, juste logger et sauvegarder l'état dans localStorage
     if (isUsingMockClient) {
       console.log('Mode démo: Pointage simulé enregistré', {
         employeeId,
@@ -27,11 +31,16 @@ export const recordTimeTracking = async (
         action,
         timestamp: new Date().toISOString()
       });
+      
+      // Save current action to localStorage for mock mode state persistence
+      localStorage.setItem(getLastActionKey(employeeId), action);
+      console.log(`Saved action to localStorage: ${action} for employee ${employeeId}`);
+      
       return true;
     }
     
     // Enregistrer le pointage dans la base de données
-    const { error, data } = await supabase
+    const { error } = await supabase
       .from('time_tracking')
       .insert([
         {
@@ -40,16 +49,14 @@ export const recordTimeTracking = async (
           action: action,
           timestamp: new Date().toISOString()
         }
-      ])
-      .select();
+      ]);
     
     if (error) {
-      console.error('Erreur d\'insertion time_tracking:', error);
+      console.error('Error recording time tracking:', error);
       throw error;
     }
     
-    console.log('Time tracking record created:', data);
-    
+    console.log(`Successfully recorded ${action} for employee ${employeeId}`);
     return true;
   } catch (error) {
     console.error('Erreur lors de l\'enregistrement du pointage:', error);
@@ -63,44 +70,56 @@ export const getLastTimeTracking = async (
   companyId: string
 ): Promise<{ action: TimeTrackingAction; timestamp: string } | null> => {
   try {
-    console.log('Getting last time tracking for employee ID:', employeeId);
+    console.log(`Getting last time tracking for employee ${employeeId}`);
     
-    // Si nous utilisons le client mock, retourner des données simulées
+    // Si nous utilisons le client mock, retourner des données simulées depuis localStorage
     if (isUsingMockClient) {
       console.log('Mode démo: Récupération simulée du dernier pointage');
       
-      // Créer un comportement alternant entre entrée et sortie
-      // en fonction de l'employeeId pour la démonstration
-      const mockAction = employeeId.length % 2 === 0 
-        ? TimeTrackingAction.ENTRY 
-        : TimeTrackingAction.EXIT;
-        
+      // Check localStorage for the last action to maintain consistent state
+      const lastActionKey = getLastActionKey(employeeId);
+      const storedAction = localStorage.getItem(lastActionKey);
+      
+      if (storedAction) {
+        console.log(`Mock mode: Found stored last action: ${storedAction}`);
+        return {
+          action: storedAction as TimeTrackingAction,
+          timestamp: new Date().toISOString()
+        };
+      }
+      
+      // Default to EXIT so next action will be ENTRY
+      console.log('Mock mode: No stored action, defaulting to EXIT');
       return {
-        action: mockAction,
+        action: TimeTrackingAction.EXIT,
         timestamp: new Date().toISOString()
       };
     }
     
     // Rechercher le dernier pointage dans la base de données
+    console.log(`Querying time_tracking for employee_id=${employeeId} and company_id=${companyId}`);
     const { data, error } = await supabase
       .from('time_tracking')
       .select('*')
       .eq('employee_id', employeeId)
       .eq('company_id', companyId)
       .order('timestamp', { ascending: false })
-      .limit(1)
-      .single();
+      .limit(1);
     
     if (error) {
-      console.log('No previous time tracking found for employee:', employeeId);
+      console.error('Error fetching last time tracking:', error);
       return null;
     }
     
-    console.log('Last time tracking found:', data);
+    if (!data || data.length === 0) {
+      console.log('No previous time tracking found for this employee');
+      return null;
+    }
     
+    console.log('Last time tracking found:', data[0]);
     return {
-      action: data.action as TimeTrackingAction,
-      timestamp: data.timestamp
+      action: data[0].action as TimeTrackingAction,
+      timestamp: data[0].timestamp
     };
   } catch (error) {
     console.error('Erreur lors de la récupération du dernier pointage:', error);
@@ -113,25 +132,49 @@ export const getNextAction = async (
   employeeId: string,
   companyId: string
 ): Promise<TimeTrackingAction> => {
-  console.log('Determining next action for employee ID:', employeeId);
+  console.log(`Determining next action for employee ${employeeId} in company ${companyId}`);
   
-  // Si nous utilisons le client mock, alterner en fonction de l'ID
+  // Si nous utilisons le client mock, utiliser localStorage pour simuler l'état
   if (isUsingMockClient) {
     console.log('Mode démo: Détermination simulée de la prochaine action');
     
-    // Pour simplifier la démo, utiliser l'ID pour déterminer l'action
-    // Si la longueur de l'ID est paire, proposer une entrée, sinon une sortie
-    return employeeId.length % 2 === 0 
-      ? TimeTrackingAction.ENTRY 
-      : TimeTrackingAction.EXIT;
+    const lastActionKey = getLastActionKey(employeeId);
+    const storedAction = localStorage.getItem(lastActionKey);
+    
+    if (!storedAction) {
+      console.log('Mock mode: No stored action, defaulting to ENTRY');
+      return TimeTrackingAction.ENTRY;
+    }
+    
+    const nextAction = storedAction === TimeTrackingAction.ENTRY 
+      ? TimeTrackingAction.EXIT 
+      : TimeTrackingAction.ENTRY;
+    
+    console.log(`Mock mode: Last action was ${storedAction}, next action is ${nextAction}`);
+    return nextAction;
   }
   
   const lastTracking = await getLastTimeTracking(employeeId, companyId);
-  console.log('Last tracking result:', lastTracking);
   
-  if (!lastTracking || lastTracking.action === TimeTrackingAction.EXIT) {
+  if (!lastTracking) {
+    console.log('No previous tracking found, suggesting ENTRY');
     return TimeTrackingAction.ENTRY;
   }
   
-  return TimeTrackingAction.EXIT;
+  // Determine next action based on last action
+  const nextAction = lastTracking.action === TimeTrackingAction.ENTRY 
+    ? TimeTrackingAction.EXIT 
+    : TimeTrackingAction.ENTRY;
+  
+  console.log(`Last action was ${lastTracking.action}, next action is ${nextAction}`);
+  return nextAction;
+};
+
+// Save last action for mock mode - for backward compatibility
+export const saveLastAction = (employeeId: string, action: TimeTrackingAction): void => {
+  if (isUsingMockClient) {
+    const lastActionKey = getLastActionKey(employeeId);
+    localStorage.setItem(lastActionKey, action);
+    console.log(`Saved last action for ${employeeId}: ${action}`);
+  }
 };

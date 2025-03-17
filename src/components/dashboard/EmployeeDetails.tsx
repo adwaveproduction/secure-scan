@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -46,7 +45,7 @@ const EmployeeDetails = ({ companyId }: EmployeeDetailsProps) => {
     const fetchEmployees = async () => {
       try {
         setLoadingEmployees(true);
-        
+
         if (isUsingMockClient) {
           console.log('Using mock employee data');
           const mockEmployees = [
@@ -57,33 +56,18 @@ const EmployeeDetails = ({ companyId }: EmployeeDetailsProps) => {
           setLoadingEmployees(false);
           return;
         }
-        
-        const [registeredResponse, employeesResponse] = await Promise.all([
-          supabase
-            .from('registered_employees')
-            .select('id, name, email')
-            .eq('company_id', companyId),
-            
-          supabase
-            .from('employees')
-            .select('id, name, email')
-            .eq('company_id', companyId)
-        ]);
-        
-        if (registeredResponse.error) {
-          throw registeredResponse.error;
+
+        // Fetch employees only from the `registered_employees` table
+        const { data: registeredEmployees, error: registeredError } = await supabase
+          .from('registered_employees')
+          .select('id, name, email')
+          .eq('company_id', companyId);
+
+        if (registeredError) {
+          throw registeredError;
         }
-        
-        if (employeesResponse.error) {
-          throw employeesResponse.error;
-        }
-        
-        const allEmployees = [...(registeredResponse.data || []), ...(employeesResponse.data || [])];
-        const uniqueEmployees = Array.from(
-          new Map(allEmployees.map(emp => [emp.email, emp])).values()
-        );
-        
-        setEmployees(uniqueEmployees);
+
+        setEmployees(registeredEmployees || []);
       } catch (error) {
         console.error('Error fetching employees:', error);
         toast.error('Erreur lors du chargement des employés');
@@ -91,24 +75,24 @@ const EmployeeDetails = ({ companyId }: EmployeeDetailsProps) => {
         setLoadingEmployees(false);
       }
     };
-    
+
     fetchEmployees();
   }, [companyId]);
 
   const handleEmployeeSelect = async (employeeId: string) => {
     setSelectedEmployeeId(employeeId);
-    
+
     if (!employeeId) {
       setEmployee(null);
       setMonthlyTotals([]);
       return;
     }
-    
+
     setLoading(true);
     try {
       const selectedEmployee = employees.find(emp => emp.id === employeeId) || null;
       setEmployee(selectedEmployee);
-      
+
       if (selectedEmployee) {
         await fetchMonthlyTotals(selectedEmployee.id);
       } else {
@@ -121,7 +105,7 @@ const EmployeeDetails = ({ companyId }: EmployeeDetailsProps) => {
       setLoading(false);
     }
   };
-  
+
   const handleYearChange = async (year: string) => {
     setSelectedYear(year);
     if (employee) {
@@ -132,7 +116,7 @@ const EmployeeDetails = ({ companyId }: EmployeeDetailsProps) => {
   const fetchMonthlyTotals = async (employeeId: string) => {
     try {
       setLoading(true);
-      
+
       if (isUsingMockClient) {
         console.log('Using mock time tracking data');
         const mockTotals = MONTHS.map((monthName, index) => ({
@@ -141,63 +125,63 @@ const EmployeeDetails = ({ companyId }: EmployeeDetailsProps) => {
           totalHours: Math.round(Math.random() * 160),
           entriesCount: Math.round(Math.random() * 22)
         }));
-        
+
         setMonthlyTotals(mockTotals);
         setLoading(false);
         return;
       }
-      
+
       const { data: timeEntries, error: timeError } = await supabase
         .from('time_tracking')
         .select('timestamp, action')
         .eq('employee_id', employeeId)
         .eq('company_id', companyId);
-      
+
       if (timeError) {
         throw timeError;
       }
-      
+
       const year = parseInt(selectedYear);
-      
+
       const entriesByMonth = new Map<number, { entries: any[], exits: any[] }>();
-      
+
       MONTHS.forEach((_, index) => {
         entriesByMonth.set(index, { entries: [], exits: [] });
       });
-      
+
       timeEntries?.forEach(entry => {
         const entryDate = parseISO(entry.timestamp);
         const entryYear = getYear(entryDate);
-        
+
         if (entryYear === year) {
           const month = getMonth(entryDate);
           const monthData = entriesByMonth.get(month) || { entries: [], exits: [] };
-          
+
           if (entry.action === TimeTrackingAction.ENTRY) {
             monthData.entries.push(entryDate);
           } else if (entry.action === TimeTrackingAction.EXIT) {
             monthData.exits.push(entryDate);
           }
-          
+
           entriesByMonth.set(month, monthData);
         }
       });
-      
+
       const totals: MonthlyTotal[] = MONTHS.map((monthName, month) => {
         const monthData = entriesByMonth.get(month) || { entries: [], exits: [] };
-        
+
         const sortedEntries = [...monthData.entries].sort((a, b) => a.getTime() - b.getTime());
         const sortedExits = [...monthData.exits].sort((a, b) => a.getTime() - b.getTime());
-        
+
         let totalMilliseconds = 0;
-        
+
         let entryIndex = 0;
         let exitIndex = 0;
-        
+
         while (entryIndex < sortedEntries.length && exitIndex < sortedExits.length) {
           const entry = sortedEntries[entryIndex];
           const exit = sortedExits[exitIndex];
-          
+
           if (exit > entry) {
             totalMilliseconds += exit.getTime() - entry.getTime();
             entryIndex++;
@@ -206,9 +190,9 @@ const EmployeeDetails = ({ companyId }: EmployeeDetailsProps) => {
             exitIndex++;
           }
         }
-        
+
         const totalHours = Math.round(totalMilliseconds / (1000 * 60 * 60) * 10) / 10;
-        
+
         return {
           month,
           monthName,
@@ -216,7 +200,7 @@ const EmployeeDetails = ({ companyId }: EmployeeDetailsProps) => {
           entriesCount: sortedEntries.length
         };
       });
-      
+
       setMonthlyTotals(totals);
     } catch (error) {
       console.error('Error fetching monthly totals:', error);
@@ -229,7 +213,7 @@ const EmployeeDetails = ({ companyId }: EmployeeDetailsProps) => {
 
   const handleExportExcel = () => {
     if (!employee || monthlyTotals.length === 0) return;
-    
+
     try {
       const formattedData = formatMonthlyTotalsData(employee, monthlyTotals);
       exportToExcel(

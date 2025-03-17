@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthForm } from '@/components/auth/AuthForm';
@@ -31,12 +30,12 @@ const Login = () => {
         } else {
           console.error('No admin password found in database');
           // Set a default password if none is found
-          setAdminPassword('123456789');
+          setAdminPassword('admin12345@redwan');
         }
       } catch (error) {
         console.error('Error fetching admin password:', error);
         // Keep using the default password if there was an error
-        setAdminPassword('123456789');
+        setAdminPassword('admin12345@redwan');
       } finally {
         setLoading(false);
       }
@@ -46,27 +45,41 @@ const Login = () => {
   }, []);
   
   const handleLogin = async (data: { email: string; password: string }) => {
-    // Fetch the password again to make sure we have the latest version
     try {
-      const { data: passwordData, error } = await supabase
+      // Fetch the user data based on the provided email
+      const { data: userData, error: userError } = await supabase
+        .from('users')  // Assuming you have a 'users' table
+        .select('email, password')
+        .eq('email', data.email)
+        .maybeSingle();
+      
+      if (userError) throw userError;
+      
+      if (!userData) {
+        toast.error('Email not found');
+        return;
+      }
+
+      // Fetch the admin password to validate the login
+      const { data: passwordData, error: passwordError } = await supabase
         .from('app_passwords')
         .select('password_value')
         .eq('password_type', 'admin')
         .maybeSingle();
       
-      if (error) throw error;
+      if (passwordError) throw passwordError;
       
-      const currentAdminPassword = passwordData?.password_value || '123456789';
-      
-      console.log('Login attempt with password:', data.password);
+      const currentAdminPassword = passwordData?.password_value || 'admin12345@redwan';
+
+      console.log('Login attempt with email:', data.email);
       console.log('Current admin password from DB:', currentAdminPassword);
-      
-      // Check if the password matches the stored admin password
-      if (data.password === currentAdminPassword) {
+
+      // Check if the password matches the stored admin password and if the email matches
+      if (data.password === currentAdminPassword && data.email === userData.email) {
         toast.success('Connexion réussie');
         // Store user in session
         sessionStorage.setItem('user', JSON.stringify({
-          id: '123',
+          id: '123',  // Replace with the actual user ID
           email: data.email,
         }));
         navigate('/dashboard');

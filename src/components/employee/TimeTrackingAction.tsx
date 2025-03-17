@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { LogIn, LogOut, Clock, RefreshCw } from 'lucide-react';
-import { recordTimeTracking, getNextAction, TimeTrackingAction as Action } from '@/utils/timeTracking';
+import { recordTimeTracking, getNextAction, TimeTrackingAction as Action, saveLastAction } from '@/utils/timeTracking';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -17,20 +17,30 @@ interface TimeTrackingActionProps {
 
 export const TimeTrackingAction = ({ employeeId, companyId, employeeName, employeeEmail }: TimeTrackingActionProps) => {
   const [nextAction, setNextAction] = useState<Action>(Action.ENTRY);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState<string>('');
   const [countdown, setCountdown] = useState<number | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    console.log('TimeTrackingAction - Using employee ID:', employeeId);
-    
     const fetchNextAction = async () => {
-      const action = await getNextAction(employeeId, companyId);
-      setNextAction(action);
+      try {
+        setIsLoading(true);
+        console.log(`Fetching next action for employee ${employeeId} in company ${companyId}`);
+        const action = await getNextAction(employeeId, companyId);
+        console.log(`Next action determined: ${action}`);
+        setNextAction(action);
+      } catch (error) {
+        console.error('Error fetching next action:', error);
+        toast.error('Erreur lors de la récupération de l\'action');
+      } finally {
+        setIsLoading(false);
+      }
     };
     
-    fetchNextAction();
+    if (employeeId && companyId) {
+      fetchNextAction();
+    }
   }, [employeeId, companyId]);
   
   useEffect(() => {
@@ -68,7 +78,8 @@ export const TimeTrackingAction = ({ employeeId, companyId, employeeName, employ
   const handleTimeTracking = async () => {
     try {
       setIsLoading(true);
-      console.log('Recording time tracking for employee ID:', employeeId);
+      
+      console.log(`Recording time tracking: ${nextAction}`);
       
       const success = await recordTimeTracking(
         employeeId,
@@ -80,12 +91,16 @@ export const TimeTrackingAction = ({ employeeId, companyId, employeeName, employ
         throw new Error('Échec de l\'enregistrement du pointage');
       }
       
+      // Save the current action for mock mode
+      saveLastAction(employeeId, nextAction);
+      
       toast.success(
         nextAction === Action.ENTRY 
           ? 'Entrée enregistrée avec succès!' 
           : 'Sortie enregistrée avec succès!'
       );
       
+      // Toggle the next action
       setNextAction(
         nextAction === Action.ENTRY ? Action.EXIT : Action.ENTRY
       );
@@ -130,11 +145,13 @@ export const TimeTrackingAction = ({ employeeId, companyId, employeeName, employ
             {employeeName ? `Bonjour, ${employeeName}` : 'Pointage'}
           </CardTitle>
           <CardDescription className="text-center">
-            {countdown !== null 
-              ? `Déconnexion automatique dans ${countdown} secondes...` 
-              : nextAction === Action.ENTRY 
-                ? 'Enregistrez votre entrée' 
-                : 'Enregistrez votre sortie'}
+            {isLoading ? 'Chargement...' : (
+              countdown !== null 
+                ? `Déconnexion automatique dans ${countdown} secondes...` 
+                : nextAction === Action.ENTRY 
+                  ? 'Enregistrez votre entrée' 
+                  : 'Enregistrez votre sortie'
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center justify-center space-y-6 py-6">

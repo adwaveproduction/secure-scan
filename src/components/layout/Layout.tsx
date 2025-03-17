@@ -2,7 +2,7 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { PageTransition } from '../ui/PageTransition';
 import { Button } from '../ui/button';
-import { LogOut } from 'lucide-react';
+import { LogOut, Bell, User, Settings } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { PasswordChangeModal } from './PasswordChangeModal';
@@ -32,21 +32,59 @@ export const Layout = ({ children }: LayoutProps) => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="py-4 px-6 flex items-center">
-        {isLoggedIn && (
-          <div className="flex space-x-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="flex items-center gap-1" 
-              onClick={handleLogout}
-            >
-              <LogOut size={16} />
-              Déconnexion
-            </Button>
+      {isLoggedIn && (
+        <header className="border-b border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+          <div className="container mx-auto px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="font-bold text-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-transparent bg-clip-text">
+                  SecureScan
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-3">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="text-blue-600 hover:bg-blue-100"
+                  onClick={() => toast.info('Fonctionnalité à venir')}
+                >
+                  <Bell size={18} />
+                </Button>
+                
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="text-blue-600 hover:bg-blue-100"
+                  onClick={() => toast.info('Fonctionnalité à venir')}
+                >
+                  <Settings size={18} />
+                </Button>
+                
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="text-blue-600 hover:bg-blue-100"
+                  onClick={() => toast.info('Fonctionnalité à venir')}
+                >
+                  <User size={18} />
+                </Button>
+                
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex items-center gap-1 border-blue-200 text-blue-600 hover:bg-blue-50" 
+                  onClick={handleLogout}
+                >
+                  <LogOut size={16} />
+                  Déconnexion
+                </Button>
+              </div>
+            </div>
           </div>
-        )}
-      </div>
+        </header>
+      )}
+      
       <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4">
         <PageTransition>{children}</PageTransition>
       </main>
@@ -58,4 +96,3 @@ export const Layout = ({ children }: LayoutProps) => {
     </div>
   );
 };
-
