@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
@@ -14,7 +13,6 @@ import { Button } from '@/components/ui/button';
 const ScanQRCode = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const forceNew = searchParams.get('forceNew') === 'true';
   
   const {
     state,
@@ -85,6 +83,7 @@ const ScanQRCode = () => {
         );
         
       case ScanState.TIME_TRACKING:
+        console.log('Rendering TimeTrackingComponent with employeeId:', employeeId);
         return (
           <>
             {(employeeId && companyId) ? (
@@ -101,9 +100,6 @@ const ScanQRCode = () => {
         return null;
     }
   };
-
-  // We removed the cleanup effect that was clearing session data 
-  // to allow device recognition between sessions
 
   return (
     <Layout>

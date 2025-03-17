@@ -17,6 +17,8 @@ export const recordTimeTracking = async (
   action: TimeTrackingAction
 ): Promise<boolean> => {
   try {
+    console.log('Recording time tracking with employee ID:', employeeId);
+    
     // Si nous utilisons le client mock, juste logger
     if (isUsingMockClient) {
       console.log('Mode démo: Pointage simulé enregistré', {
@@ -29,7 +31,7 @@ export const recordTimeTracking = async (
     }
     
     // Enregistrer le pointage dans la base de données
-    const { error } = await supabase
+    const { error, data } = await supabase
       .from('time_tracking')
       .insert([
         {
@@ -38,11 +40,15 @@ export const recordTimeTracking = async (
           action: action,
           timestamp: new Date().toISOString()
         }
-      ]);
+      ])
+      .select();
     
     if (error) {
+      console.error('Erreur d\'insertion time_tracking:', error);
       throw error;
     }
+    
+    console.log('Time tracking record created:', data);
     
     return true;
   } catch (error) {
@@ -57,6 +63,8 @@ export const getLastTimeTracking = async (
   companyId: string
 ): Promise<{ action: TimeTrackingAction; timestamp: string } | null> => {
   try {
+    console.log('Getting last time tracking for employee ID:', employeeId);
+    
     // Si nous utilisons le client mock, retourner des données simulées
     if (isUsingMockClient) {
       console.log('Mode démo: Récupération simulée du dernier pointage');
@@ -83,12 +91,15 @@ export const getLastTimeTracking = async (
       .limit(1)
       .single();
     
-    if (error || !data) {
+    if (error) {
+      console.log('No previous time tracking found for employee:', employeeId);
       return null;
     }
     
+    console.log('Last time tracking found:', data);
+    
     return {
-      action: data.action,
+      action: data.action as TimeTrackingAction,
       timestamp: data.timestamp
     };
   } catch (error) {
@@ -102,6 +113,8 @@ export const getNextAction = async (
   employeeId: string,
   companyId: string
 ): Promise<TimeTrackingAction> => {
+  console.log('Determining next action for employee ID:', employeeId);
+  
   // Si nous utilisons le client mock, alterner en fonction de l'ID
   if (isUsingMockClient) {
     console.log('Mode démo: Détermination simulée de la prochaine action');
@@ -114,6 +127,7 @@ export const getNextAction = async (
   }
   
   const lastTracking = await getLastTimeTracking(employeeId, companyId);
+  console.log('Last tracking result:', lastTracking);
   
   if (!lastTracking || lastTracking.action === TimeTrackingAction.EXIT) {
     return TimeTrackingAction.ENTRY;

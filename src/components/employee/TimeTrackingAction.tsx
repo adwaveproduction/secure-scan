@@ -23,6 +23,8 @@ export const TimeTrackingAction = ({ employeeId, companyId, employeeName, employ
   const navigate = useNavigate();
 
   useEffect(() => {
+    console.log('TimeTrackingAction - Using employee ID:', employeeId);
+    
     const fetchNextAction = async () => {
       const action = await getNextAction(employeeId, companyId);
       setNextAction(action);
@@ -66,6 +68,7 @@ export const TimeTrackingAction = ({ employeeId, companyId, employeeName, employ
   const handleTimeTracking = async () => {
     try {
       setIsLoading(true);
+      console.log('Recording time tracking for employee ID:', employeeId);
       
       const success = await recordTimeTracking(
         employeeId,

@@ -21,6 +21,7 @@ const TimeTrackingComponent = ({
     if (storedEmployee) {
       try {
         const parsedEmployee = JSON.parse(storedEmployee);
+        console.log('Retrieved employee data in TimeTrackingComponent:', parsedEmployee);
         if (parsedEmployee.email) {
           setEmployeeEmail(parsedEmployee.email);
         }
@@ -29,6 +30,8 @@ const TimeTrackingComponent = ({
       }
     }
   }, []);
+  
+  console.log('TimeTrackingComponent - Using employee ID:', employeeId);
   
   return (
     <TimeTrackingAction 
