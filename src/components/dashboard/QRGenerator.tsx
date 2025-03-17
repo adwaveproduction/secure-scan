@@ -20,6 +20,88 @@ export const QRGenerator = ({ companyId }: QRGeneratorProps) => {
   const [generatedAt, setGeneratedAt] = useState<Date | null>(null);
   const [fraudAlertsCount, setFraudAlertsCount] = useState<number>(0);
 
+  // Load existing QR code on component mount
+  useEffect(() => {
+    const loadExistingQR = async () => {
+      try {
+        // Try to load from localStorage first (for persistence between sessions)
+        const savedQrData = localStorage.getItem(`qr_code_${companyId}`);
+        
+        if (savedQrData) {
+          const { qrUrl, qrId, timestamp } = JSON.parse(savedQrData);
+          setQrUrl(qrUrl);
+          setQrId(qrId);
+          setGeneratedAt(new Date(timestamp));
+          console.log('Loaded existing QR code from storage');
+        } else if (!isUsingMockClient) {
+          // If not in localStorage, try to fetch the most recent active QR code
+          const { data, error } = await supabase
+            .from('qr_codes')
+            .select('*')
+            .eq('company_id', companyId)
+            .eq('active', true)
+            .order('created_at', { ascending: false })
+            .limit(1);
+            
+          if (!error && data && data.length > 0) {
+            // If we found an active QR code, regenerate the QR URL
+            const activeQRId = data[0].id;
+            await regenerateQRFromId(activeQRId);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading existing QR code:', error);
+        // Don't show toast here to avoid annoying the user on load
+      }
+    };
+    
+    loadExistingQR();
+  }, [companyId]);
+
+  // Helper to regenerate QR URL from an existing ID
+  const regenerateQRFromId = async (qrId: string) => {
+    try {
+      const token = {
+        companyId,
+        qrId,
+        timestamp: new Date().getTime(),
+        nonce: Math.random().toString(36).substring(2, 15)
+      };
+      
+      const qrData = JSON.stringify(token);
+      const baseUrl = window.location.origin;
+      const scanUrl = `${baseUrl}/scan?data=${encodeURIComponent(qrData)}`;
+      
+      const newQrUrl = await import('qrcode').then(QRCode => 
+        QRCode.toDataURL(scanUrl)
+      );
+      
+      setQrUrl(newQrUrl);
+      setQrId(qrId);
+      setGeneratedAt(new Date());
+      
+      // Save to localStorage
+      saveQRToLocalStorage(newQrUrl, qrId);
+      
+      console.log('Regenerated QR URL from existing ID');
+    } catch (error) {
+      console.error('Error regenerating QR from ID:', error);
+    }
+  };
+
+  // Save QR code to localStorage
+  const saveQRToLocalStorage = (qrUrl: string, qrId: string) => {
+    try {
+      localStorage.setItem(`qr_code_${companyId}`, JSON.stringify({
+        qrUrl,
+        qrId,
+        timestamp: new Date().toISOString()
+      }));
+    } catch (error) {
+      console.error('Error saving QR to localStorage:', error);
+    }
+  };
+
   // Générer un nouveau QR code
   const handleGenerateQR = async () => {
     try {
@@ -28,6 +110,10 @@ export const QRGenerator = ({ companyId }: QRGeneratorProps) => {
       setQrUrl(qrUrl);
       setQrId(qrId);
       setGeneratedAt(new Date());
+      
+      // Save to localStorage for persistence
+      saveQRToLocalStorage(qrUrl, qrId);
+      
       toast.success('QR Code généré avec succès');
     } catch (error) {
       console.error('Error generating QR code:', error);
@@ -157,7 +243,7 @@ export const QRGenerator = ({ companyId }: QRGeneratorProps) => {
       <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
         <div className="flex justify-between items-center">
           <div>
-            <CardTitle className="text-xl font-medium">Générer un QR Code</CardTitle>
+            <CardTitle className="text-xl font-medium">QR Code de Pointage</CardTitle>
             <CardDescription className="text-blue-100">
               Les employés pourront scanner ce code pour pointer leur entrée/sortie
             </CardDescription>
@@ -211,8 +297,8 @@ export const QRGenerator = ({ companyId }: QRGeneratorProps) => {
           </motion.div>
         ) : (
           <div className="flex flex-col items-center justify-center h-64 bg-blue-50/50 rounded-md w-64 border border-blue-100 border-dashed">
-            <p className="text-blue-400 text-center">Aucun QR code actif</p>
-            <p className="text-sm text-blue-300 mt-2">Générez un nouveau code</p>
+            <p className="text-blue-400 text-center">Chargement du QR code...</p>
+            <p className="text-sm text-blue-300 mt-2">Veuillez patienter</p>
           </div>
         )}
         
