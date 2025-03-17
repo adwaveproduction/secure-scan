@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { decodeQRCode } from '@/utils/qr-generator';
@@ -88,8 +89,8 @@ export const useScanValidator = (): ScanValidationResult => {
               ...employeeInfo,
               name: parsedEmployee.name,
               email: parsedEmployee.email,
-              id: parsedEmployee.id, // Ensure we're passing the ID
-              initialDeviceId: parsedEmployee.initialDeviceId // Include initial device ID
+              id: parsedEmployee.id, 
+              initialDeviceId: parsedEmployee.initialDeviceId 
             };
             console.log('Using stored employee info for validation:', employeeInfo);
           } catch (e) {
@@ -126,37 +127,75 @@ export const useScanValidator = (): ScanValidationResult => {
         
         if (isRecognized && !forceNew && !hasLoggedOut) {
           console.log('Device recognized, looking for employee');
-          // Device is recognized, find employee in database
+          
+          // Get the current device fingerprint to match with registered employee
+          const currentDeviceId = await generateDeviceFingerprint();
+          console.log('Current device fingerprint:', currentDeviceId);
+          
+          // Device is recognized, find employee in database by device ID
           const { data: employeeData, error } = await supabase
             .from('registered_employees')
             .select('*')
-            .eq('company_id', decodedData.companyId);
+            .eq('company_id', decodedData.companyId)
+            .eq('initial_device_id', currentDeviceId)
+            .maybeSingle();
           
-          console.log('Employee search result:', { employeeData, error });
+          console.log('Employee search result by device ID:', { employeeData, error });
           
-          if (!error && employeeData && employeeData.length > 0) {
-            // Employee found, proceed to time tracking
-            setEmployeeId(employeeData[0].id);
+          if (!error && employeeData) {
+            // Employee found by device ID, proceed to time tracking
+            console.log('Found employee by device ID:', employeeData.id);
+            setEmployeeId(employeeData.id);
             setEmployeeData({
-              id: employeeData[0].id,
-              name: employeeData[0].name,
-              email: employeeData[0].email,
-              initialDeviceId: employeeData[0].initial_device_id || deviceId // Include the initial device ID
+              id: employeeData.id,
+              name: employeeData.name,
+              email: employeeData.email,
+              initialDeviceId: employeeData.initial_device_id
             });
             
             // Store employee data for future fraud detection
             sessionStorage.setItem('employee_data', JSON.stringify({
-              id: employeeData[0].id,
-              name: employeeData[0].name,
-              email: employeeData[0].email,
-              initialDeviceId: employeeData[0].initial_device_id || deviceId
+              id: employeeData.id,
+              name: employeeData.name,
+              email: employeeData.email,
+              initialDeviceId: employeeData.initial_device_id
             }));
             
             setState(ScanState.TIME_TRACKING);
           } else {
-            console.log('No employee found, redirecting to registration');
-            // No employee found in database, redirect to registration
-            setState(ScanState.REGISTRATION);
+            // If we can't find by device ID, we'll try to get employee data from session
+            console.log('No employee found by device ID, checking session storage');
+            
+            if (employeeInfo.id) {
+              console.log('Using employee ID from session:', employeeInfo.id);
+              
+              // Verify this employee exists in database
+              const { data: storedEmployee, error: storedError } = await supabase
+                .from('registered_employees')
+                .select('*')
+                .eq('id', employeeInfo.id)
+                .eq('company_id', decodedData.companyId)
+                .maybeSingle();
+              
+              if (!storedError && storedEmployee) {
+                console.log('Verified employee from database:', storedEmployee);
+                setEmployeeId(storedEmployee.id);
+                setEmployeeData({
+                  id: storedEmployee.id,
+                  name: storedEmployee.name,
+                  email: storedEmployee.email,
+                  initialDeviceId: storedEmployee.initial_device_id
+                });
+                
+                setState(ScanState.TIME_TRACKING);
+              } else {
+                console.log('Employee from session not found in database, redirecting to registration');
+                setState(ScanState.REGISTRATION);
+              }
+            } else {
+              console.log('No employee ID in session, redirecting to registration');
+              setState(ScanState.REGISTRATION);
+            }
           }
         } else {
           console.log('Device not recognized, force new registration, or logged out recently, redirecting to registration');
