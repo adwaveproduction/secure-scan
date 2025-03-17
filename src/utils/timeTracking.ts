@@ -2,8 +2,7 @@
 /**
  * Utility pour gérer le pointage des employés
  */
-import { supabase } from './supabase-client';
-import { isUsingMockClient } from './supabase-client';
+import { supabase, isUsingMockClient } from './supabase-client';
 
 // Types d'actions de pointage
 export enum TimeTrackingAction {
@@ -21,7 +20,12 @@ export const recordTimeTracking = async (
   action: TimeTrackingAction
 ): Promise<boolean> => {
   try {
-    console.log(`Recording time tracking: Employee ${employeeId}, Action: ${action}`);
+    if (!employeeId) {
+      console.error('recordTimeTracking: employeeId is required!');
+      return false;
+    }
+    
+    console.log(`Recording time tracking: Employee ${employeeId}, Company ${companyId}, Action: ${action}`);
     
     // Si nous utilisons le client mock, juste logger et sauvegarder l'état dans localStorage
     if (isUsingMockClient) {
@@ -39,24 +43,27 @@ export const recordTimeTracking = async (
       return true;
     }
     
+    // Log the data we're about to insert for debugging
+    const timeData = {
+      employee_id: employeeId,
+      company_id: companyId,
+      action: action,
+      timestamp: new Date().toISOString()
+    };
+    console.log('Inserting time tracking record:', timeData);
+    
     // Enregistrer le pointage dans la base de données
-    const { error } = await supabase
+    const { error, data } = await supabase
       .from('time_tracking')
-      .insert([
-        {
-          employee_id: employeeId,
-          company_id: companyId,
-          action: action,
-          timestamp: new Date().toISOString()
-        }
-      ]);
+      .insert([timeData])
+      .select();
     
     if (error) {
       console.error('Error recording time tracking:', error);
       throw error;
     }
     
-    console.log(`Successfully recorded ${action} for employee ${employeeId}`);
+    console.log(`Successfully recorded ${action} for employee ${employeeId}:`, data);
     return true;
   } catch (error) {
     console.error('Erreur lors de l\'enregistrement du pointage:', error);
@@ -70,6 +77,11 @@ export const getLastTimeTracking = async (
   companyId: string
 ): Promise<{ action: TimeTrackingAction; timestamp: string } | null> => {
   try {
+    if (!employeeId) {
+      console.error('getLastTimeTracking: employeeId is required!');
+      return null;
+    }
+    
     console.log(`Getting last time tracking for employee ${employeeId}`);
     
     // Si nous utilisons le client mock, retourner des données simulées depuis localStorage
@@ -132,6 +144,11 @@ export const getNextAction = async (
   employeeId: string,
   companyId: string
 ): Promise<TimeTrackingAction> => {
+  if (!employeeId) {
+    console.error('getNextAction: employeeId is required!');
+    return TimeTrackingAction.ENTRY;
+  }
+  
   console.log(`Determining next action for employee ${employeeId} in company ${companyId}`);
   
   // Si nous utilisons le client mock, utiliser localStorage pour simuler l'état
@@ -170,8 +187,13 @@ export const getNextAction = async (
   return nextAction;
 };
 
-// Save last action for mock mode - for backward compatibility
+// Save last action for mock mode
 export const saveLastAction = (employeeId: string, action: TimeTrackingAction): void => {
+  if (!employeeId) {
+    console.error('saveLastAction: employeeId is required!');
+    return;
+  }
+  
   if (isUsingMockClient) {
     const lastActionKey = getLastActionKey(employeeId);
     localStorage.setItem(lastActionKey, action);

@@ -29,10 +29,18 @@ const TimeTrackingComponent = ({
       }
     }
     
-    // Log employee data for debugging
-    console.log('TimeTrackingComponent: employeeId =', employeeId);
-    console.log('TimeTrackingComponent: companyId =', companyId);
-  }, [employeeId, companyId]);
+    // Log employee information for debugging
+    console.log('TimeTrackingComponent initialized with:', {
+      employeeId,
+      companyId,
+      employeeName
+    });
+  }, [employeeId, companyId, employeeName]);
+  
+  if (!employeeId) {
+    console.error('TimeTrackingComponent: Missing employeeId!');
+    return null;
+  }
   
   return (
     <TimeTrackingAction 

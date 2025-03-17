@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { decodeQRCode } from '@/utils/qr-generator';
@@ -75,6 +76,7 @@ export const useScanValidator = (): ScanValidationResult => {
         
         // Générer l'empreinte de l'appareil pour traçabilité
         const deviceId = await generateDeviceFingerprint();
+        console.log('Generated device fingerprint:', deviceId);
         
         // Récupérer les infos employé si disponibles du sessionStorage
         const storedEmployee = sessionStorage.getItem('employee_data');
@@ -88,8 +90,8 @@ export const useScanValidator = (): ScanValidationResult => {
               ...employeeInfo,
               name: parsedEmployee.name,
               email: parsedEmployee.email,
-              id: parsedEmployee.id, // Ensure we're passing the ID
-              initialDeviceId: parsedEmployee.initialDeviceId // Include initial device ID
+              id: parsedEmployee.id,
+              initialDeviceId: parsedEmployee.initialDeviceId
             };
             console.log('Using stored employee info for validation:', employeeInfo);
           } catch (e) {
@@ -126,36 +128,74 @@ export const useScanValidator = (): ScanValidationResult => {
         
         if (isRecognized && !forceNew && !hasLoggedOut) {
           console.log('Device recognized, looking for employee');
-          // Device is recognized, find employee in database
-          const { data: employeeData, error } = await supabase
+          
+          // Get the stored device fingerprint for this company
+          const storedFingerprint = localStorage.getItem(`employee_device_${decodedData.companyId}`);
+          console.log('Stored fingerprint:', storedFingerprint);
+          
+          // Device is recognized, find employee in database with matching device fingerprint
+          const { data: employeeWithDeviceData, error: deviceError } = await supabase
             .from('registered_employees')
             .select('*')
-            .eq('company_id', decodedData.companyId);
+            .eq('company_id', decodedData.companyId)
+            .eq('initial_device_id', storedFingerprint)
+            .maybeSingle();
           
-          console.log('Employee search result:', { employeeData, error });
+          console.log('Employee search by device fingerprint result:', { 
+            employeeWithDeviceData, 
+            deviceError 
+          });
           
-          if (!error && employeeData && employeeData.length > 0) {
-            // Employee found, proceed to time tracking
-            setEmployeeId(employeeData[0].id);
+          if (!deviceError && employeeWithDeviceData) {
+            // Employee found by device fingerprint
+            console.log('Found employee by device fingerprint:', employeeWithDeviceData);
+            setEmployeeId(employeeWithDeviceData.id);
             setEmployeeData({
-              id: employeeData[0].id,
-              name: employeeData[0].name,
-              email: employeeData[0].email,
-              initialDeviceId: employeeData[0].initial_device_id || deviceId // Include the initial device ID
+              id: employeeWithDeviceData.id,
+              name: employeeWithDeviceData.name,
+              email: employeeWithDeviceData.email,
+              initialDeviceId: employeeWithDeviceData.initial_device_id
             });
             
-            // Store employee data for future fraud detection
+            // Store employee data in session storage for future use
             sessionStorage.setItem('employee_data', JSON.stringify({
-              id: employeeData[0].id,
-              name: employeeData[0].name,
-              email: employeeData[0].email,
-              initialDeviceId: employeeData[0].initial_device_id || deviceId
+              id: employeeWithDeviceData.id,
+              name: employeeWithDeviceData.name,
+              email: employeeWithDeviceData.email,
+              initialDeviceId: employeeWithDeviceData.initial_device_id
             }));
             
             setState(ScanState.TIME_TRACKING);
           } else {
+            // If we couldn't find an employee by device fingerprint, let's try by employee ID from storage
+            console.log('Employee not found by device fingerprint, trying by stored ID');
+            
+            if (employeeInfo.id) {
+              console.log('Looking up employee by ID:', employeeInfo.id);
+              const { data: employeeById, error: idError } = await supabase
+                .from('registered_employees')
+                .select('*')
+                .eq('company_id', decodedData.companyId)
+                .eq('id', employeeInfo.id)
+                .maybeSingle();
+                
+              if (!idError && employeeById) {
+                console.log('Found employee by ID:', employeeById);
+                setEmployeeId(employeeById.id);
+                setEmployeeData({
+                  id: employeeById.id,
+                  name: employeeById.name,
+                  email: employeeById.email,
+                  initialDeviceId: employeeById.initial_device_id
+                });
+                
+                setState(ScanState.TIME_TRACKING);
+                return;
+              }
+            }
+            
+            // If we still can't find the employee, redirect to registration
             console.log('No employee found, redirecting to registration');
-            // No employee found in database, redirect to registration
             setState(ScanState.REGISTRATION);
           }
         } else {

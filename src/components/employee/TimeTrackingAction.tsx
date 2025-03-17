@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { LogIn, LogOut, Clock, RefreshCw } from 'lucide-react';
-import { recordTimeTracking, getNextAction, TimeTrackingAction as Action, saveLastAction } from '@/utils/timeTracking';
+import { recordTimeTracking, getNextAction, TimeTrackingAction as Action } from '@/utils/timeTracking';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -39,7 +38,10 @@ export const TimeTrackingAction = ({ employeeId, companyId, employeeName, employ
     };
     
     if (employeeId && companyId) {
+      console.log(`TimeTrackingAction - Initializing with employee ID: ${employeeId}`);
       fetchNextAction();
+    } else {
+      console.error('TimeTrackingAction - Missing required props:', { employeeId, companyId });
     }
   }, [employeeId, companyId]);
   
@@ -79,7 +81,7 @@ export const TimeTrackingAction = ({ employeeId, companyId, employeeName, employ
     try {
       setIsLoading(true);
       
-      console.log(`Recording time tracking: ${nextAction}`);
+      console.log(`Recording time tracking for employee ${employeeId}: ${nextAction}`);
       
       const success = await recordTimeTracking(
         employeeId,
@@ -91,16 +93,12 @@ export const TimeTrackingAction = ({ employeeId, companyId, employeeName, employ
         throw new Error('Échec de l\'enregistrement du pointage');
       }
       
-      // Save the current action for mock mode
-      saveLastAction(employeeId, nextAction);
-      
       toast.success(
         nextAction === Action.ENTRY 
           ? 'Entrée enregistrée avec succès!' 
           : 'Sortie enregistrée avec succès!'
       );
       
-      // Toggle the next action
       setNextAction(
         nextAction === Action.ENTRY ? Action.EXIT : Action.ENTRY
       );
@@ -120,7 +118,6 @@ export const TimeTrackingAction = ({ employeeId, companyId, employeeName, employ
   const handleLogout = () => {
     sessionStorage.setItem('scan_logged_out', 'true');
     
-    // Store employee info for fraud detection purposes
     if (employeeName || employeeEmail) {
       sessionStorage.setItem('employee_data', JSON.stringify({
         name: employeeName,
